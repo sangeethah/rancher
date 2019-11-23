@@ -216,6 +216,36 @@ def test_cis_complaint():
     cluster_cleanup(client, cluster, aws_nodes)
 
 
+def test_cis_complaint_1_node():
+    #rke_config_cis
+    aws_nodes = \
+        AmazonWebServices().create_multiple_nodes(
+            1, random_test_name(HOST_NAME))
+    node_roles = [
+        ["controlplane","etcd", "worker"]
+    ]
+    client = get_admin_client()
+    cluster = client.create_cluster(name=evaluate_clustername(),
+                                    driver="rancherKubernetesEngine",
+                                    rancherKubernetesEngineConfig=
+                                    rke_config_cis,
+                                    defaultPodSecurityPolicyTemplateId=
+                                    POD_SECURITY_POLICY_TEMPLATE)
+    assert cluster.state == "provisioning"
+    i = 0
+    for aws_node in aws_nodes:
+        aws_node.execute_command("sudo sysctl -w vm.overcommit_memory=1")
+        aws_node.execute_command("sudo sysctl -w kernel.panic=10")
+        aws_node.execute_command("sudo sysctl -w kernel.panic_on_oops=1")
+        aws_node.execute_command("sudo useradd etcd")
+        docker_run_cmd = \
+            get_custom_host_registration_cmd(client, cluster, node_roles[i],
+                                             aws_node)
+        aws_node.execute_command(docker_run_cmd)
+    cluster = validate_cluster_state(client, cluster)
+    cluster_cleanup(client, cluster, aws_nodes)
+
+
 def test_rke_az_host_1(node_template_az):
     validate_rke_dm_host_1(node_template_az, rke_config)
 
